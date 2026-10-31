@@ -149,11 +149,13 @@ def explain_finding(path: str, label: str, signals: List[str],
 
 
 def enrich_finding(finding, snippet: str = ""):
-    """Fill finding.reason with a readable explanation. Returns the finding.
+    """Fill finding.risk_level and finding.explanation. Returns the finding.
 
-    The label and weight stay exactly as Person B set them.
+    classification, signals and evidence stay exactly as the signals stage set them.
     Person A calls this from cli.py after classify/signals.
     """
-    out = explain_finding(finding.path, finding.label, finding.signals, snippet)
-    finding.reason = f"{out['explanation']} {out['reason']}".strip()
+    out = explain_finding(finding.file_path, finding.classification,
+                          finding.signals, snippet or finding.evidence)
+    finding.risk_level = out["risk_level"]
+    finding.explanation = f"{out['explanation']} {out['reason']}".strip()
     return finding
