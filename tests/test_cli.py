@@ -18,8 +18,10 @@ def test_cli_help():
     assert "analyze" in result.stdout
 
 
-def test_cli_analyze_no_package_dir():
-    """2. Analyze without package-dir displays remote pipeline limitation."""
+def test_cli_analyze_no_package_dir(monkeypatch):
+    """2. Analyze without package-dir displays remote pipeline limitation when pipeline unavailable."""
+    import repolens.cli as cli_mod
+    monkeypatch.setattr(cli_mod, "_PIPELINE_AVAILABLE", False)
     result = runner.invoke(app, ["analyze", "lodash", "4.17.21"])
     assert result.exit_code == 0
     assert "Remote npm registry and repository fetch pipeline is not implemented yet" in result.stdout
