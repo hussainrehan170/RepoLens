@@ -1,8 +1,14 @@
 """Tests for RepoLens command line interface."""
 
 from pathlib import Path
+import sys
 import pytest
 from typer.testing import CliRunner
+
+# Ensure repository root is on sys.path for direct test runs
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 from repolens.cli import app
 from scripts.make_tampered import make_tampered_fixture
