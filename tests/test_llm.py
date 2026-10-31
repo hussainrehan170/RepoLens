@@ -29,12 +29,14 @@ class MockMode(unittest.TestCase):
         a = llm.explain_finding("a.js", "UNEXPLAINED", ["DANGEROUS_API"], "x")
         self.assertEqual(a, llm.explain_finding("a.js", "UNEXPLAINED", ["DANGEROUS_API"], "x"))
 
-    def test_enrich_sets_reason_and_keeps_label(self):
-        f = Finding(path="a.js", label="UNEXPLAINED", reason="", signals=["NEW_INSTALL_HOOK"], weight=40)
+    def test_enrich_sets_explanation_and_keeps_classification(self):
+        f = Finding(file_path="a.js", classification="UNEXPLAINED",
+                    signals=["NEW_INSTALL_HOOK"])
         out = llm.enrich_finding(f)
-        self.assertTrue(out.reason)
-        self.assertEqual((out.label, out.weight), ("UNEXPLAINED", 40))
-
+        self.assertIs(out, f)
+        self.assertEqual(f.classification, "UNEXPLAINED")
+        self.assertEqual(f.risk_level, "HIGH")
+        self.assertTrue(f.explanation)
     def test_pkgcheck_env_name_also_works(self):
         with mock.patch.dict(os.environ, {"REPOLENS_LLM": "", "PKGCHECK_LLM": "mock"}):
             self.assertEqual(llm.get_mode(), "mock")
