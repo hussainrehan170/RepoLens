@@ -330,3 +330,118 @@ def test_cli_symlink_traversal_protection(tmp_path: Path):
     assert result.exit_code == 0
     # linked_secret.env must be ignored and not scanned
     assert "linked_secret.env" not in result.stdout
+
+
+def test_cli_watch_command():
+    """17. Watch command is preserved and informs user."""
+    result = runner.invoke(app, ["watch"])
+    assert result.exit_code == 0
+    assert "watch: not implemented yet" in result.stdout
+
+
+def test_cli_pipeline_when_available_clean(tmp_path: Path, monkeypatch):
+    """18. When pipeline is available, analyze routes remote execution through run_pipeline."""
+    from dataclasses import dataclass, field
+    from unittest.mock import MagicMock
+    import repolens.cli as cli_mod
+
+    @dataclass
+    class FakeReport:
+        package_name: str
+        version: str
+        repo_url: str | None = None
+        commit_or_tag: str | None = None
+        overall_verdict: str = "CLEAN"
+        overall_risk_score: int = 0
+        findings: list = field(default_factory=list)
+        metadata: dict = field(default_factory=lambda: {"file_counts": {"identical": 1, "modified": 0, "only_in_package": 0, "only_in_source": 0}})
+
+    mock_report = FakeReport(package_name="demo-pkg", version="1.0.0", commit_or_tag="v1.0.0")
+    mock_run_pipeline = MagicMock(return_value=mock_report)
+    mock_fetch = MagicMock()
+
+    monkeypatch.setattr(cli_mod, "_PIPELINE_AVAILABLE", True)
+    monkeypatch.setattr(cli_mod, "run_pipeline", mock_run_pipeline)
+    monkeypatch.setattr(cli_mod, "fetch", mock_fetch)
+
+    out_dir = tmp_path / "reports_test"
+    result = runner.invoke(app, ["analyze", "demo-pkg", "1.0.0", "--out", str(out_dir)])
+    assert result.exit_code == 0
+    assert "[repolens] demo-pkg@1.0.0" in result.stdout
+    assert "VERDICT: CLEAN" in result.stdout
+    mock_run_pipeline.assert_called_once()
+
+
+def test_cli_pipeline_when_available_suspicious(tmp_path: Path, monkeypatch):
+    """19. When pipeline returns SUSPICIOUS verdict, exit code is 2."""
+    from dataclasses import dataclass, field
+    from unittest.mock import MagicMock
+    import repolens.cli as cli_mod
+
+    @dataclass
+    class FakeFinding:
+        file_path: str = "evil.js"
+        classification: str = "SUSPICIOUS"
+        risk_level: str = "HIGH"
+        signals: list[str] = field(default_factory=lambda: ["eval usage"])
+
+    @dataclass
+    class FakeReport:
+        package_name: str
+        version: str
+        repo_url: str | None = None
+        commit_or_tag: str | None = None
+        overall_verdict: str = "SUSPICIOUS"
+        overall_risk_score: int = 80
+        findings: list = field(default_factory=lambda: [FakeFinding()])
+        metadata: dict = field(default_factory=dict)
+
+    mock_report = FakeReport(package_name="bad-pkg", version="1.0.0")
+    mock_run_pipeline = MagicMock(return_value=mock_report)
+    mock_fetch = MagicMock()
+
+    monkeypatch.setattr(cli_mod, "_PIPELINE_AVAILABLE", True)
+    monkeypatch.setattr(cli_mod, "run_pipeline", mock_run_pipeline)
+    monkeypatch.setattr(cli_mod, "fetch", mock_fetch)
+
+    out_dir = tmp_path / "reports_test"
+    result = runner.invoke(app, ["analyze", "bad-pkg", "1.0.0", "--out", str(out_dir)])
+    assert result.exit_code == 2
+    assert "VERDICT: SUSPICIOUS" in result.stdout
+
+
+def test_cli_pipeline_fetch_error(monkeypatch):
+    """20. When pipeline encounters FetchError, exit code is 1 and error is printed."""
+    from unittest.mock import MagicMock
+    import repolens.cli as cli_mod
+
+    class FakeFetchError(Exception):
+        pass
+
+    mock_fetch = MagicMock()
+    mock_fetch.FetchError = FakeFetchError
+
+    def fake_run_pipeline(*args, **kwargs):
+        raise FakeFetchError("Package not found in registry")
+
+    monkeypatch.setattr(cli_mod, "_PIPELINE_AVAILABLE", True)
+    monkeypatch.setattr(cli_mod, "run_pipeline", fake_run_pipeline)
+    monkeypatch.setattr(cli_mod, "fetch", mock_fetch)
+
+    result = runner.invoke(app, ["analyze", "nonexistent-pkg", "1.0.0"])
+    assert result.exit_code == 1
+    assert "[repolens] ERROR: Package not found in registry" in result.output
+
+
+def test_cli_pipeline_missing_package_and_tarball(monkeypatch):
+    """21. When pipeline is available, error if neither package nor --tarball is given."""
+    from unittest.mock import MagicMock
+    import repolens.cli as cli_mod
+
+    monkeypatch.setattr(cli_mod, "_PIPELINE_AVAILABLE", True)
+    monkeypatch.setattr(cli_mod, "run_pipeline", MagicMock())
+    monkeypatch.setattr(cli_mod, "fetch", MagicMock())
+
+    result = runner.invoke(app, ["analyze"])
+    assert result.exit_code == 1
+    assert "ERROR: Please provide a package name, --tarball, or --package-dir" in result.output
