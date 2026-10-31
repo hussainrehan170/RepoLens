@@ -1,35 +1,34 @@
-"""Shared data shapes. Everyone codes against these."""
-from __future__ import annotations
-
+"""Shared data shapes. Everyone codes against these (see team spec)."""
 from dataclasses import dataclass, field
-from typing import Literal
-
-DiffStatus = Literal["identical", "modified", "only_in_package", "only_in_source"]
-Label = Literal["EXPECTED", "SUSPICIOUS", "UNEXPLAINED"]
-Risk = Literal["LOW", "MEDIUM", "HIGH"]
+from typing import List, Dict, Optional, Any
 
 
 @dataclass
 class FileDiff:
     path: str
-    status: DiffStatus
-    pkg_hash: str | None = None
-    src_hash: str | None = None
+    status: str  # 'identical' | 'modified' | 'only_in_package' | 'only_in_source'
+    source_sha256: Optional[str] = None
+    package_sha256: Optional[str] = None
+    diff_text: Optional[str] = None
 
 
 @dataclass
 class Finding:
-    path: str
-    label: Label
-    reason: str
-    signals: list[str] = field(default_factory=list)
-    weight: int = 0
+    file_path: str
+    classification: str  # 'EXPECTED' | 'SUSPICIOUS' | 'UNEXPLAINED'
+    signals: List[str] = field(default_factory=list)
+    risk_level: str = "LOW"  # 'LOW' | 'MEDIUM' | 'HIGH'
+    explanation: str = ""
+    evidence: str = ""
 
 
 @dataclass
 class Report:
-    package: str
+    package_name: str
     version: str
-    source_found: bool
-    findings: list[Finding] = field(default_factory=list)
-    risk: Risk = "LOW"
+    repo_url: Optional[str]
+    commit_or_tag: Optional[str]
+    overall_verdict: str  # 'CLEAN' | 'WARNING' | 'SUSPICIOUS'
+    overall_risk_score: int  # 0 to 100
+    findings: List[Finding] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
